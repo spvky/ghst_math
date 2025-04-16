@@ -3,17 +3,21 @@ const rl = @import("raylib");
 const Vec2 = @import("math.zig").Vec2;
 const CollisionData = @import("math.zig").CollisionData;
 const Triangle = @import("math.zig").Triangle;
+const sort_and_sweep = @import("broad.zig").sort_and_sweep;
 
 comptime {
     _ = @import("math.zig");
+    _ = @import("broad.zig");
 }
 
-pub fn draw_collision_data(shape: CollisionData, color: rl.Color) void {
-    const p = shape.vertices;
-    for (1..p.len) |i| {
-        rl.drawLineEx(p[i - 1].toRl(), p[i].toRl(), 1, color);
+pub fn draw_collision_data(shapes: []CollisionData, colors: []rl.Color) void {
+    for (shapes, colors) |shape, color| {
+        const p = shape.vertices;
+        for (1..p.len) |i| {
+            rl.drawLineEx(p[i - 1].toRl(), p[i].toRl(), 1, color);
+        }
+        rl.drawLineEx(p[p.len - 1].toRl(), p[0].toRl(), 1, color);
     }
-    rl.drawLineEx(p[p.len - 1].toRl(), p[0].toRl(), 1, color);
 }
 
 pub fn main() !void {
@@ -38,9 +42,22 @@ pub fn main() !void {
     };
     var b: Triangle = .{
         .rotation = 30,
-        .center = Vec2.default,
+        .center = Vec2.X.scale(20),
         .vertices = triangle_points,
     };
+
+    var c: Triangle = .{
+        .rotation = 30,
+        .center = Vec2.X.scale(50),
+        .vertices = triangle_points,
+    };
+
+    var d: Triangle = .{
+        .rotation = 30,
+        .center = Vec2.X.scale(70),
+        .vertices = triangle_points,
+    };
+
     while (!rl.windowShouldClose()) {
         rl.beginDrawing();
         rl.clearBackground(rl.Color.black);
@@ -65,11 +82,19 @@ pub fn main() !void {
 
         const a_col = try a.collision_data(allocator);
         const b_col = try b.collision_data(allocator);
-
+        const c_col = try c.collision_data(allocator);
+        const d_col = try d.collision_data(allocator);
         b.overlapping = b_col.sat_collision(a_col);
         const b_color: rl.Color = if (b.overlapping) rl.Color.blue else rl.Color.red;
-        draw_collision_data(a_col, rl.Color.red);
-        draw_collision_data(b_col, b_color);
+        var shapes = [_]CollisionData{ a_col, b_col, c_col, d_col };
+        var colors = [_]rl.Color{
+            rl.Color.red,
+            b_color,
+            rl.Color.red,
+            rl.Color.red,
+        };
+        draw_collision_data(shapes[0..], colors[0..]);
+        _ = try sort_and_sweep(allocator, shapes[0..]);
 
         camera.end();
         defer rl.endDrawing();
