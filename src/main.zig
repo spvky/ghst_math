@@ -42,19 +42,19 @@ pub fn main() !void {
     };
     var b: Triangle = .{
         .rotation = 30,
-        .center = Vec2.X.scale(20),
+        .center = Vec2.default,
         .vertices = triangle_points,
     };
 
     var c: Triangle = .{
         .rotation = 30,
-        .center = Vec2.X.scale(50),
+        .center = Vec2.default,
         .vertices = triangle_points,
     };
 
     var d: Triangle = .{
         .rotation = 30,
-        .center = Vec2.X.scale(70),
+        .center = Vec2.default,
         .vertices = triangle_points,
     };
 
@@ -64,27 +64,32 @@ pub fn main() !void {
         camera.begin();
 
         if (rl.isKeyDown(.d)) {
-            b.center.x += 0.001;
+            b.center.x += 0.01;
         }
         if (rl.isKeyDown(.a)) {
-            b.center.x -= 0.001;
+            b.center.x -= 0.01;
         }
         if (rl.isKeyDown(.w)) {
-            b.center.y -= 0.001;
+            b.center.y -= 0.01;
         }
         if (rl.isKeyDown(.s)) {
-            b.center.y += 0.001;
+            b.center.y += 0.01;
         }
 
         if (rl.isKeyDown(.r)) {
-            b.rotation += 0.001;
+            b.rotation += 0.01;
         }
 
         const a_col = try a.collision_data(allocator);
         const b_col = try b.collision_data(allocator);
         const c_col = try c.collision_data(allocator);
         const d_col = try d.collision_data(allocator);
-        b.overlapping = b_col.sat_collision(a_col);
+        const collision = b_col.sat_collision(a_col);
+        if (collision) |_| {
+            b.overlapping = true;
+        } else {
+            b.overlapping = false;
+        }
         const b_color: rl.Color = if (b.overlapping) rl.Color.blue else rl.Color.red;
         var shapes = [_]CollisionData{ a_col, b_col, c_col, d_col };
         var colors = [_]rl.Color{
@@ -94,7 +99,10 @@ pub fn main() !void {
             rl.Color.red,
         };
         draw_collision_data(shapes[0..], colors[0..]);
-        _ = try sort_and_sweep(allocator, shapes[0..]);
+        const collision_pairs = try sort_and_sweep(allocator, shapes[0..]);
+        var pairsString: [10]u8 = undefined;
+        const printable = try std.fmt.bufPrintZ(&pairsString, "{} pairs", .{collision_pairs.len});
+        rl.drawText(printable, 0, 0, 24, rl.Color.white);
 
         camera.end();
         defer rl.endDrawing();

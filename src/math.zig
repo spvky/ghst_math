@@ -92,9 +92,19 @@ pub const Projection = struct {
 
     const Self = @This();
 
-    pub fn overlap(self: Self, rhs: Self) bool {
-        return self.min <= rhs.max and rhs.min <= self.max;
+    // pub fn overlap(self: Self, rhs: Self) bool {
+    //     return self.min <= rhs.max and rhs.min <= self.max;
+    // }
+    //
+    pub fn overlap(self: Self, rhs: Self) f32 {
+        return @min(self.max, rhs.max) - @max(self.min, rhs.min) + 1.0;
     }
+};
+pub const Overlap = enum { none, a_b, b_a, a_contains_b, b_contains_a };
+
+pub const Mtv = struct {
+    axis: Vec2,
+    magnitude: f32,
 };
 
 test "projection overlap" {
@@ -154,22 +164,41 @@ pub const CollisionData = struct {
 
     const Self = @This();
 
-    pub fn sat_collision(self: Self, rhs: Self) bool {
+    pub fn sat_collision(self: Self, rhs: Self) ?Mtv {
+        var overlap = std.math.floatMax(f32);
+        var smallest: Vec2 = .default;
+
         for (self.normals) |axis| {
             const p1 = self.scalar_projection(axis);
             const p2 = rhs.scalar_projection(axis);
 
-            if (!p1.overlap(p2)) return false;
+            const o = p1.overlap(p2);
+            if (o <= 0) {
+                return null;
+            } else {
+                if (o < overlap) {
+                    overlap = o;
+                    smallest = axis;
+                }
+            }
         }
 
         for (rhs.normals) |axis| {
             const p1 = self.scalar_projection(axis);
             const p2 = rhs.scalar_projection(axis);
 
-            if (!p1.overlap(p2)) return false;
+            const o = p1.overlap(p2);
+            if (o <= 0) {
+                return null;
+            } else {
+                if (o < overlap) {
+                    overlap = o;
+                    smallest = axis;
+                }
+            }
         }
 
-        return true;
+        return Mtv{ .axis = smallest, .magnitude = overlap };
     }
 
     pub fn scalar_projection(self: Self, axis: Vec2) Projection {
