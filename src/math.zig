@@ -93,7 +93,7 @@ pub const Projection = struct {
     const Self = @This();
 
     pub fn overlap(self: Self, rhs: Self) f32 {
-        return @min(self.max, rhs.max) - @max(self.min, rhs.min) + 1.0;
+        return @min(self.max, rhs.max) - @max(self.min, rhs.min);
     }
 };
 
@@ -128,27 +128,29 @@ pub fn Shape(comptime vertex_count: comptime_int) type {
             var normal_list = std.ArrayListUnmanaged(Vec2).empty;
             var starting_point = verts[0];
             for (verts[1..]) |point| {
-                const midpoint = point.sub(starting_point);
-                // rl.drawLineEx(self.center.toRl(), midpoint.toRl(), 1, rl.Color.brown);
-                const raw_normal = midpoint.normalize().perp();
-                if (midpoint.sub(self.center).dot(raw_normal) < 0) {
-                    try normal_list.append(allocator, raw_normal);
-                } else {
-                    try normal_list.append(allocator, raw_normal.scale(-1));
-                }
+                // const midpoint = starting_point.add(point).scale(0.5);
+                const raw_normal = point.sub(starting_point).perp().normalize();
+
+                try normal_list.append(allocator, raw_normal);
                 starting_point = point;
             }
-            const midpoint = verts[0].sub(starting_point);
-            const raw_normal = midpoint.normalize().perp();
-            if (midpoint.sub(self.center).dot(raw_normal) > 0) {
-                try normal_list.append(allocator, raw_normal.scale(-1));
-            } else {
-                try normal_list.append(allocator, raw_normal);
-            }
+            // const midpoint = starting_point.add(verts[0]).scale(0.5);
+            const raw_normal = verts[0].sub(starting_point).perp().normalize();
+            try normal_list.append(allocator, raw_normal);
             const normals = try normal_list.toOwnedSlice(allocator);
 
             return .{ .vertices = verts, .normals = normals, .rigidbody = self.rigidbody, .center = &self.center };
         }
+    };
+}
+
+fn index_to_color(index: usize) u8 {
+    return switch (index) {
+        0 => return 'Y',
+        1 => return 'R',
+        2 => return 'B',
+        3 => return 'G',
+        else => 'W',
     };
 }
 
@@ -185,10 +187,10 @@ pub const CollisionData = struct {
                 if (o <= 0) {
                     return null;
                 } else {
-                    // if (o < overlap) {
-                    //     overlap = o;
-                    //     smallest = axis;
-                    // }
+                    if (o < overlap) {
+                        overlap = o;
+                        smallest = axis;
+                    }
                 }
                 // tested_axes.put(allocator, axis_hash, {}) catch |err| std.debug.print("{}\n", .{err});
             }
@@ -218,7 +220,16 @@ pub const CollisionData = struct {
             }
         }
 
-        return Mtv{ .axis = smallest.scale(-1), .magnitude = overlap };
+        std.debug.print("----------\nMtv found\naxis: {{ {d:.2}, {d:.2} }}\nmagnitude: {d:.2}\n\n", .{ smallest.x, smallest.y, overlap });
+        const center = self.center.*;
+        const other = rhs.center.*;
+
+        rl.drawLineEx(center.toRl(), other.toRl(), 1, rl.Color.orange);
+
+        // if (center.sub(other).normalize().dot(smallest) > 0) {
+        //     smallest = smallest.scale(-1);
+        // }
+        return Mtv{ .axis = smallest, .magnitude = overlap };
     }
 
     pub fn scalar_projection(self: Self, axis: Vec2) Projection {
@@ -259,7 +270,7 @@ test "dot" {
 }
 
 test "projection overlap" {
-    const a = Projection{ .min = -1, .max = 1 };
-    const b = Projection{ .min = 2, .max = 3 };
-    try expect(a.overlap(b) <= 0);
+    const a = Projection{ .min = -10, .max = 1 };
+    const b = Projection{ .min = 0, .max = 31 };
+    try expect(a.overlap(b) == 1);
 }

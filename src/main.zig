@@ -25,10 +25,25 @@ pub fn draw_collision_data(shapes: []CollisionData, colors: []rl.Color) void {
     for (shapes, colors) |shape, color| {
         _ = color;
         const p = shape.vertices;
+        const n = shape.normals;
+        // Draw edges
         for (1..p.len) |i| {
             rl.drawLineEx(p[i - 1].toRl(), p[i].toRl(), 1, draw_color(i));
         }
         rl.drawLineEx(p[p.len - 1].toRl(), p[0].toRl(), 1, draw_color(0));
+
+        // Draw Normals
+        const mid_1 = p[0].add(p[1]).scale(0.5);
+        rl.drawLineEx(mid_1.toRl(), mid_1.add(n[0].scale(5)).toRl(), 1, rl.Color.purple);
+
+        const mid_2 = p[1].add(p[2]).scale(0.5);
+        rl.drawLineEx(mid_2.toRl(), mid_2.add(n[1].scale(5)).toRl(), 1, rl.Color.purple);
+
+        const mid_3 = p[2].add(p[3]).scale(0.5);
+        rl.drawLineEx(mid_3.toRl(), mid_3.add(n[2].scale(5)).toRl(), 1, rl.Color.purple);
+
+        const mid_4 = p[3].add(p[0]).scale(0.5);
+        rl.drawLineEx(mid_4.toRl(), mid_4.add(n[3].scale(5)).toRl(), 1, rl.Color.purple);
     }
 }
 
@@ -51,13 +66,12 @@ pub fn main() !void {
 
     var a: Quad = .{
         .rotation = 0,
-        .center = Vec2.default,
-        // .center = Vec2.NEG_X.scale(20).add(Vec2.NEG_Y.scale(10)),
+        .center = Vec2.X.scale(-20).add(Vec2.NEG_Y.scale(-10)),
         .vertices = rectangle_points,
     };
     var b: Quad = .{
         .rotation = 0,
-        .center = Vec2.X.scale(30),
+        .center = Vec2.X.scale(50),
         .vertices = rectangle_points,
         .rigidbody = .dynamic,
     };
@@ -89,15 +103,18 @@ pub fn main() !void {
         const collision = b_col.sat_collision(a_col);
         if (collision) |mtv| {
             if (b_col.rigidbody == .dynamic) {
-                std.debug.print("Collision found\nAxis: {{ {d:.2},{d:.2} }}\nAxis Magnitude: {d:.2}\n", .{ mtv.axis.x, mtv.axis.y, mtv.axis.length() });
                 b_col.center.* = b_col.center.*.add(mtv.axis.scale(mtv.magnitude));
+
+                const center = b_col.center.*;
+                const other = a_col.center.*;
+                rl.drawLineEx(center.toRl(), other.toRl(), 1, rl.Color.orange);
             }
             b.overlapping = true;
-            // debug sleep
             std.time.sleep(std.time.ns_per_ms * 100);
         } else {
             b.overlapping = false;
         }
+
         const b_color: rl.Color = if (b.overlapping) rl.Color.blue else rl.Color.red;
         var shapes = [_]CollisionData{ a_col, b_col };
         var colors = [_]rl.Color{
