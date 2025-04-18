@@ -92,26 +92,17 @@ pub const Projection = struct {
 
     const Self = @This();
 
-    // pub fn overlap(self: Self, rhs: Self) bool {
-    //     return self.min <= rhs.max and rhs.min <= self.max;
-    // }
-    //
     pub fn overlap(self: Self, rhs: Self) f32 {
         return @min(self.max, rhs.max) - @max(self.min, rhs.min) + 1.0;
     }
 };
-pub const Overlap = enum { none, a_b, b_a, a_contains_b, b_contains_a };
 
 pub const Mtv = struct {
     axis: Vec2,
     magnitude: f32,
 };
 
-test "projection overlap" {
-    const a = Projection{ .min = -1, .max = 1 };
-    const b = Projection{ .min = 2, .max = 3 };
-    try expect(!a.overlap(b));
-}
+const RigidbodyType = enum { static, dynamic };
 
 pub fn Shape(comptime vertex_count: comptime_int) type {
     return struct {
@@ -119,86 +110,115 @@ pub fn Shape(comptime vertex_count: comptime_int) type {
         center: Vec2,
         rotation: f32,
         overlapping: bool = false,
+        rigidbody: RigidbodyType = .static,
 
         const Self = @This();
 
-        pub fn verts(self: Self, allocator: std.mem.Allocator) ![]Vec2 {
+        pub fn collision_data(self: *Self, allocator: std.mem.Allocator) !CollisionData {
             const x_axis = Vec2.X.rotate(self.rotation);
             const y_axis = Vec2.Y.rotate(self.rotation);
             const center = self.center;
-
-            var list = std.ArrayListUnmanaged(Vec2).empty;
-
+            var vert_list = std.ArrayListUnmanaged(Vec2).empty;
             for (self.vertices) |vert| {
-                try list.append(allocator, center.add(x_axis.scale(vert.x).add(y_axis.scale(vert.y))));
+                try vert_list.append(allocator, center.add(x_axis.scale(vert.x).add(y_axis.scale(vert.y))));
             }
 
-            return list.toOwnedSlice(allocator);
-        }
+            const verts = try vert_list.toOwnedSlice(allocator);
 
-        pub fn collision_data(self: *Self, allocator: std.mem.Allocator) !CollisionData {
-            const my_verts = try self.verts(allocator);
-            const my_normals = try Self.normals(allocator, my_verts);
-            return .{ .vertices = my_verts, .normals = my_normals };
-        }
-
-        pub fn normals(allocator: std.mem.Allocator, points: []Vec2) ![]Vec2 {
-            var list = std.ArrayListUnmanaged(Vec2).empty;
-            var starting_point = points[0];
-            for (points[1..]) |point| {
-                try list.append(allocator, point.sub(starting_point).perp().normalize());
+            var normal_list = std.ArrayListUnmanaged(Vec2).empty;
+            var starting_point = verts[0];
+            for (verts[1..]) |point| {
+                const midpoint = point.sub(starting_point);
+                // rl.drawLineEx(self.center.toRl(), midpoint.toRl(), 1, rl.Color.brown);
+                const raw_normal = midpoint.normalize().perp();
+                if (midpoint.sub(self.center).dot(raw_normal) < 0) {
+                    try normal_list.append(allocator, raw_normal);
+                } else {
+                    try normal_list.append(allocator, raw_normal.scale(-1));
+                }
                 starting_point = point;
             }
-            try list.append(allocator, points[0].sub(starting_point).perp().normalize());
-            return list.toOwnedSlice(allocator);
+            const midpoint = verts[0].sub(starting_point);
+            const raw_normal = midpoint.normalize().perp();
+            if (midpoint.sub(self.center).dot(raw_normal) > 0) {
+                try normal_list.append(allocator, raw_normal.scale(-1));
+            } else {
+                try normal_list.append(allocator, raw_normal);
+            }
+            const normals = try normal_list.toOwnedSlice(allocator);
+
+            return .{ .vertices = verts, .normals = normals, .rigidbody = self.rigidbody, .center = &self.center };
         }
     };
 }
 
-pub const Triangle = Shape(3);
-pub const Quad = Shape(4);
-
 pub const CollisionData = struct {
+    center: *Vec2,
     vertices: []Vec2,
     normals: []Vec2,
+    rigidbody: RigidbodyType,
+    velocity: Vec2 = Vec2.default,
 
     const Self = @This();
 
     pub fn sat_collision(self: Self, rhs: Self) ?Mtv {
         var overlap = std.math.floatMax(f32);
         var smallest: Vec2 = .default;
+        // var buffer: [1024]u8 = undefined;
+        // var fba = std.heap.FixedBufferAllocator.init(buffer[0..]);
+        // const allocator = fba.allocator();
+
+        // var tested_axes = std.AutoArrayHashMapUnmanaged(i64, void).empty;
 
         for (self.normals) |axis| {
-            const p1 = self.scalar_projection(axis);
-            const p2 = rhs.scalar_projection(axis);
+            // const x_32: i32 = @intFromFloat(axis.x);
+            // const y_32: i32 = @intFromFloat(axis.y);
 
-            const o = p1.overlap(p2);
-            if (o <= 0) {
-                return null;
-            } else {
-                if (o < overlap) {
-                    overlap = o;
-                    smallest = axis;
+            // const axis_hash: i64 = @as(i64, @intCast(x_32)) << 32 | @as(i64, @intCast(y_32));
+            // if (tested_axes.get(axis_hash)) |_| {
+            //     std.debug.print("Axis already tested: {{ {d:.2},{d:.2} }}\nSkipping\n", .{ axis.x, axis.y });
+            if (false) {} else {
+                const p1 = self.scalar_projection(axis);
+                const p2 = rhs.scalar_projection(axis);
+
+                const o = p1.overlap(p2);
+                if (o <= 0) {
+                    return null;
+                } else {
+                    // if (o < overlap) {
+                    //     overlap = o;
+                    //     smallest = axis;
+                    // }
                 }
+                // tested_axes.put(allocator, axis_hash, {}) catch |err| std.debug.print("{}\n", .{err});
             }
         }
 
         for (rhs.normals) |axis| {
-            const p1 = self.scalar_projection(axis);
-            const p2 = rhs.scalar_projection(axis);
+            // const x_32: i32 = @intFromFloat(axis.x);
+            // const y_32: i32 = @intFromFloat(axis.y);
 
-            const o = p1.overlap(p2);
-            if (o <= 0) {
-                return null;
-            } else {
-                if (o < overlap) {
-                    overlap = o;
-                    smallest = axis;
+            // const axis_hash: i64 = @as(i64, @intCast(x_32)) << 32 | @as(i64, @intCast(y_32));
+            // if (tested_axes.get(axis_hash)) |_| {
+            //     std.debug.print("Axis already tested: {{ {d:.2},{d:.2} }}\nSkipping\n", .{ axis.x, axis.y });
+            if (false) {} else {
+                const p1 = self.scalar_projection(axis);
+                const p2 = rhs.scalar_projection(axis);
+
+                const o = p1.overlap(p2);
+                if (o <= 0) {
+                    return null;
+                } else {
+                    if (o < overlap) {
+                        overlap = o;
+                        smallest = axis;
+                    }
                 }
+                // tested_axes.put(allocator, axis_hash, {}) catch |err| std.debug.print("{}\n", .{err});
             }
         }
 
-        return Mtv{ .axis = smallest, .magnitude = overlap };
+        return Mtv{ .axis = smallest.scale(-1), .magnitude = overlap };
     }
 
     pub fn scalar_projection(self: Self, axis: Vec2) Projection {
@@ -215,13 +235,31 @@ pub const CollisionData = struct {
     }
 };
 
+pub const Triangle = Shape(3);
+pub const Quad = Shape(4);
+
 const expect = std.testing.expect;
 
 test "length" {
     try expect(Vec2.X.length() == 1);
 }
 
+test "normalization" {
+    const a = Vec2{ .x = 100, .y = 100 };
+    const normalized_a = a.normalize();
+    const normalized_length = normalized_a.length();
+    std.debug.print("a: {{ {d:.2},{d:.2} }}\n", .{ normalized_a.x, normalized_a.y });
+    std.debug.print("normalized_length: {d:.2}\n", .{normalized_length});
+    try expect(normalized_length == 1);
+}
+
 test "dot" {
     const dot_product = Vec2.X.dot(Vec2.NEG_X);
     try expect(dot_product == -1);
+}
+
+test "projection overlap" {
+    const a = Projection{ .min = -1, .max = 1 };
+    const b = Projection{ .min = 2, .max = 3 };
+    try expect(a.overlap(b) <= 0);
 }
