@@ -9,13 +9,15 @@ pub fn sort_and_sweep(allocator: std.mem.Allocator, colliders: []math.CollisionD
     for (0..colliders.len) |i| {
         var a = colliders[i];
         const a_proj_x = a.scalar_projection(Vec2.X);
+        const a_proj_y = a.scalar_projection(Vec2.Y);
 
         for (0..colliders.len) |j| {
             if (i == j) continue;
             var b = colliders[j];
             const b_proj_x = b.scalar_projection(Vec2.X);
+            const b_proj_y = b.scalar_projection(Vec2.Y);
 
-            if (a_proj_x.overlap(b_proj_x) > 0) {
+            if (a_proj_x.overlap(b_proj_x) > 0 and a_proj_y.overlap(b_proj_y) > 0) {
                 var hash: usize = std.math.minInt(usize);
 
                 if (i > j) {
