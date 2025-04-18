@@ -102,10 +102,15 @@ pub fn main() !void {
         const collision = b_col.sat_collision(a_col);
         if (collision) |mtv| {
             if (b_col.rigidbody == .dynamic) {
-                b_col.center.* = b_col.center.*.add(mtv.axis.scale(mtv.magnitude));
-
                 const center = b_col.center.*;
                 const other = a_col.center.*;
+
+                if (other.sub(center).dot(mtv.axis) > 0) {
+                    b_col.center.* = b_col.center.*.add(mtv.axis.scale(-mtv.magnitude));
+                } else {
+                    b_col.center.* = b_col.center.*.add(mtv.axis.scale(mtv.magnitude));
+                }
+
                 rl.drawLineEx(center.toRl(), other.toRl(), 1, rl.Color.orange);
             }
             b.overlapping = true;
