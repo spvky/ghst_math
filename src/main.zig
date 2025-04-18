@@ -21,9 +21,8 @@ pub fn draw_color(index: usize) rl.Color {
     }
 }
 
-pub fn draw_collision_data(shapes: []CollisionData, colors: []rl.Color) void {
-    for (shapes, colors) |shape, color| {
-        _ = color;
+pub fn draw_collision_data(shapes: []CollisionData) void {
+    for (shapes) |shape| {
         const p = shape.vertices;
         const n = shape.normals;
         // Draw edges
@@ -115,13 +114,8 @@ pub fn main() !void {
             b.overlapping = false;
         }
 
-        const b_color: rl.Color = if (b.overlapping) rl.Color.blue else rl.Color.red;
         var shapes = [_]CollisionData{ a_col, b_col };
-        var colors = [_]rl.Color{
-            rl.Color.red,
-            b_color,
-        };
-        draw_collision_data(shapes[0..], colors[0..]);
+        draw_collision_data(shapes[0..]);
         const collision_pairs = try sort_and_sweep(allocator, shapes[0..]);
         var pairsString: [10]u8 = undefined;
         const printable = try std.fmt.bufPrintZ(&pairsString, "{} pairs", .{collision_pairs.len});
