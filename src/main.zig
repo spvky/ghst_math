@@ -114,7 +114,6 @@ pub fn main() !void {
                 rl.drawLineEx(center.toRl(), other.toRl(), 1, rl.Color.orange);
             }
             b.overlapping = true;
-            std.time.sleep(std.time.ns_per_ms * 100);
         } else {
             b.overlapping = false;
         }
