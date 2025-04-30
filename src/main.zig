@@ -5,11 +5,7 @@ const CollisionData = @import("math.zig").CollisionData;
 const Triangle = @import("math.zig").Triangle;
 const Quad = @import("math.zig").Quad;
 const sort_and_sweep = @import("broad.zig").sort_and_sweep;
-
-comptime {
-    _ = @import("math.zig");
-    _ = @import("broad.zig");
-}
+const sat_collision = @import("narrow.zig").sat_collision;
 
 pub fn draw_color(index: usize) rl.Color {
     switch (index % 4) {
@@ -98,8 +94,8 @@ pub fn main() !void {
         }
 
         const a_col = try a.collision_data(allocator);
-        var b_col = try b.collision_data(allocator);
-        const collision = b_col.sat_collision(a_col);
+        const b_col = try b.collision_data(allocator);
+        const collision = sat_collision(b_col, a_col);
         if (collision) |mtv| {
             if (b_col.rigidbody == .dynamic) {
                 const center = b_col.center.*;

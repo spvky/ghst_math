@@ -64,6 +64,10 @@ pub const Vec2 = struct {
         return self.x * rhs.x + self.y * rhs.y;
     }
 
+    pub fn cross(self: Self, rhs: Self) f32 {
+        return (self.x * rhs.y) - (self.y * rhs.x);
+    }
+
     pub fn perp_axis(self: Self, rhs: Self) Self {
         return .{ .x = -(rhs.y - self.y), .y = rhs.x - self.x };
     }
@@ -86,6 +90,23 @@ pub const Vec2 = struct {
     }
 };
 
+pub const Edge = struct {
+    start: Vec2,
+    end: Vec2,
+    normal: Vec2,
+
+    const Self = @This();
+
+    pub fn from(a: Vec2, b: Vec2) Self {
+        const normal = b.sub(a).perp().normalize();
+        return .{ .start = a, .end = b, .normal = normal };
+    }
+
+    pub fn midpoint(self: Self) Vec2 {
+        return self.start.add(self.end).scale(0.5);
+    }
+};
+
 pub const Projection = struct {
     min: f32,
     max: f32,
@@ -95,11 +116,6 @@ pub const Projection = struct {
     pub fn overlap(self: Self, rhs: Self) f32 {
         return @min(self.max, rhs.max) - @max(self.min, rhs.min);
     }
-};
-
-pub const Mtv = struct {
-    axis: Vec2,
-    magnitude: f32,
 };
 
 const RigidbodyType = enum { static, dynamic };
@@ -125,32 +141,24 @@ pub fn Shape(comptime vertex_count: comptime_int) type {
 
             const verts = try vert_list.toOwnedSlice(allocator);
 
+            var edge_list = std.ArrayListUnmanaged(Edge).empty;
             var normal_list = std.ArrayListUnmanaged(Vec2).empty;
             var starting_point = verts[0];
             for (verts[1..]) |point| {
-                // const midpoint = starting_point.add(point).scale(0.5);
+                try edge_list.append(allocator, Edge.from(starting_point, point));
                 const raw_normal = point.sub(starting_point).perp().normalize();
 
                 try normal_list.append(allocator, raw_normal);
                 starting_point = point;
             }
-            // const midpoint = starting_point.add(verts[0]).scale(0.5);
+            edge_list.append(allocator, Edge.from(starting_point, verts[0]));
             const raw_normal = verts[0].sub(starting_point).perp().normalize();
             try normal_list.append(allocator, raw_normal);
             const normals = try normal_list.toOwnedSlice(allocator);
+            const edges = try edge_list.toOwnedSlice(allocator);
 
-            return .{ .vertices = verts, .normals = normals, .rigidbody = self.rigidbody, .center = &self.center };
+            return .{ .vertices = verts, .normals = normals, .edges = edges, .rigidbody = self.rigidbody, .center = &self.center };
         }
-    };
-}
-
-fn index_to_color(index: usize) u8 {
-    return switch (index) {
-        0 => return 'Y',
-        1 => return 'R',
-        2 => return 'B',
-        3 => return 'G',
-        else => 'W',
     };
 }
 
@@ -158,74 +166,11 @@ pub const CollisionData = struct {
     center: *Vec2,
     vertices: []Vec2,
     normals: []Vec2,
+    edges: []Edge,
     rigidbody: RigidbodyType,
     velocity: Vec2 = Vec2.default,
 
     const Self = @This();
-
-    pub fn sat_collision(self: Self, rhs: Self) ?Mtv {
-        var overlap = std.math.floatMax(f32);
-        var smallest: Vec2 = .default;
-        var buffer: [1024]u8 = undefined;
-        var fba = std.heap.FixedBufferAllocator.init(buffer[0..]);
-        const allocator = fba.allocator();
-
-        var tested_axes = std.AutoArrayHashMapUnmanaged(i64, void).empty;
-
-        for (self.normals) |axis| {
-            const x_32: i32 = @intFromFloat(axis.x);
-            const y_32: i32 = @intFromFloat(axis.y);
-
-            const axis_hash: i64 = @as(i64, @intCast(x_32)) << 32 | @as(i64, @intCast(y_32));
-            if (tested_axes.get(axis_hash)) |_| {} else {
-                const p1 = self.scalar_projection(axis);
-                const p2 = rhs.scalar_projection(axis);
-
-                const o = p1.overlap(p2);
-                if (o <= 0) {
-                    return null;
-                } else {
-                    if (o < overlap) {
-                        overlap = o;
-                        smallest = axis;
-                    }
-                }
-                tested_axes.put(allocator, axis_hash, {}) catch |err| std.debug.print("{}\n", .{err});
-            }
-        }
-
-        for (rhs.normals) |axis| {
-            const x_32: i32 = @intFromFloat(axis.x);
-            const y_32: i32 = @intFromFloat(axis.y);
-
-            const axis_hash: i64 = @as(i64, @intCast(x_32)) << 32 | @as(i64, @intCast(y_32));
-            if (tested_axes.get(axis_hash)) |_| {} else {
-                const p1 = self.scalar_projection(axis);
-                const p2 = rhs.scalar_projection(axis);
-
-                const o = p1.overlap(p2);
-                if (o <= 0) {
-                    return null;
-                } else {
-                    if (o < overlap) {
-                        overlap = o;
-                        smallest = axis;
-                    }
-                }
-                tested_axes.put(allocator, axis_hash, {}) catch |err| std.debug.print("{}\n", .{err});
-            }
-        }
-
-        const center = self.center.*;
-        const other = rhs.center.*;
-
-        rl.drawLineEx(center.toRl(), other.toRl(), 1, rl.Color.orange);
-
-        // if (center.sub(other).normalize().dot(smallest) > 0) {
-        //     smallest = smallest.scale(-1);
-        // }
-        return Mtv{ .axis = smallest, .magnitude = overlap };
-    }
 
     pub fn scalar_projection(self: Self, axis: Vec2) Projection {
         var min = self.vertices[0].dot(axis);
@@ -241,10 +186,52 @@ pub const CollisionData = struct {
     }
 };
 
+pub const Ray2d = struct { origin: Vec2, direction: Vec2, toi: f32 };
+
+pub const Line = struct { start: Vec2, end: Vec2 };
+
+pub fn line_intersection(a: Vec2, b: Vec2, c: Vec2, d: Vec2) ?Vec2 {
+
+    // Vectors representing our lines
+    const r = b.sub(a);
+    const s = d.sub(c);
+
+    const determinate = r.cross(s);
+    // If the cross of the 2 vectors is 0 we know they are parallel and can never intersect
+    if (determinate == 0) return null;
+
+    const t = c.sub(a).cross(s) / determinate;
+    const u = a.sub(c).cross(r) / -determinate;
+
+    // Our parameters, if both t and u are between 0-1, we know our lines are intersecting at a.add(r.scale(t)) and c.add(s.scale(u))
+    if (0 <= u and u <= 1 and 0 <= t and t <= 1) {
+        return a.add(r.scale(t));
+    } else {
+        return null;
+    }
+}
+
 pub const Triangle = Shape(3);
 pub const Quad = Shape(4);
 
+// Testing
+comptime {
+    _ = @import("broad.zig");
+    _ = @import("narrow.zig");
+}
+
 const expect = std.testing.expect;
+const expectApprox = std.testing.expectApproxEqRel;
+
+test "intersection" {
+    const a = Vec2.default;
+    const b = Vec2.ONE.scale(2);
+    const c = Vec2.Y.scale(2);
+    const d = Vec2.X.scale(2);
+    const e = line_intersection(a, b, c, d).?;
+
+    try expect(e.x == 1);
+}
 
 test "length" {
     try expect(Vec2.X.length() == 1);
@@ -254,9 +241,7 @@ test "normalization" {
     const a = Vec2{ .x = 100, .y = 100 };
     const normalized_a = a.normalize();
     const normalized_length = normalized_a.length();
-    std.debug.print("a: {{ {d:.2},{d:.2} }}\n", .{ normalized_a.x, normalized_a.y });
-    std.debug.print("normalized_length: {d:.2}\n", .{normalized_length});
-    try expect(normalized_length == 1);
+    try expectApprox(normalized_length, 1, 0.01);
 }
 
 test "dot" {
