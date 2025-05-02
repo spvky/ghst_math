@@ -5,7 +5,7 @@ const CollisionData = @import("math.zig").CollisionData;
 const Triangle = @import("math.zig").Triangle;
 const Quad = @import("math.zig").Quad;
 const sort_and_sweep = @import("broad.zig").sort_and_sweep;
-const sat_collision = @import("narrow.zig").sat_collision;
+const sat_collision = @import("sat.zig").sat_collision;
 
 pub fn draw_color(index: usize) rl.Color {
     switch (index % 4) {

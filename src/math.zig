@@ -215,7 +215,8 @@ pub const Quad = Shape(4);
 // Testing
 comptime {
     _ = @import("broad.zig");
-    _ = @import("narrow.zig");
+    _ = @import("sat.zig");
+    _ = @import("gjk.zig");
 }
 
 const expect = std.testing.expect;
