@@ -105,6 +105,10 @@ pub const Edge = struct {
     pub fn midpoint(self: Self) Vec2 {
         return self.start.add(self.end).scale(0.5);
     }
+
+    pub fn intersect(self: Self, rhs: Self) ?Vec2 {
+        return line_intersection(self.start, self.end, rhs.start, rhs.end);
+    }
 };
 
 pub const Projection = struct {
@@ -151,13 +155,10 @@ pub fn Shape(comptime vertex_count: comptime_int) type {
                 try normal_list.append(allocator, raw_normal);
                 starting_point = point;
             }
-            edge_list.append(allocator, Edge.from(starting_point, verts[0]));
-            const raw_normal = verts[0].sub(starting_point).perp().normalize();
-            try normal_list.append(allocator, raw_normal);
-            const normals = try normal_list.toOwnedSlice(allocator);
+            try edge_list.append(allocator, Edge.from(starting_point, verts[0]));
             const edges = try edge_list.toOwnedSlice(allocator);
 
-            return .{ .vertices = verts, .normals = normals, .edges = edges, .rigidbody = self.rigidbody, .center = &self.center };
+            return .{ .vertices = verts, .edges = edges, .rigidbody = self.rigidbody, .center = &self.center };
         }
     };
 }
@@ -165,7 +166,6 @@ pub fn Shape(comptime vertex_count: comptime_int) type {
 pub const CollisionData = struct {
     center: *Vec2,
     vertices: []Vec2,
-    normals: []Vec2,
     edges: []Edge,
     rigidbody: RigidbodyType,
     velocity: Vec2 = Vec2.default,
@@ -187,8 +187,6 @@ pub const CollisionData = struct {
 };
 
 pub const Ray2d = struct { origin: Vec2, direction: Vec2, toi: f32 };
-
-pub const Line = struct { start: Vec2, end: Vec2 };
 
 pub fn line_intersection(a: Vec2, b: Vec2, c: Vec2, d: Vec2) ?Vec2 {
 

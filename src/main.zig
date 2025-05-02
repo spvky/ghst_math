@@ -19,26 +19,9 @@ pub fn draw_color(index: usize) rl.Color {
 
 pub fn draw_collision_data(shapes: []CollisionData) void {
     for (shapes) |shape| {
-        const p = shape.vertices;
-        const n = shape.normals;
-        // Draw edges
-        for (1..p.len) |i| {
-            rl.drawLineEx(p[i - 1].toRl(), p[i].toRl(), 1, draw_color(i));
+        for (shape.edges, 0..shape.edges.len) |edge, i| {
+            rl.drawLineEx(edge.start.toRl(), edge.end.toRl(), 1, draw_color(i));
         }
-        rl.drawLineEx(p[p.len - 1].toRl(), p[0].toRl(), 1, draw_color(0));
-
-        // Draw Normals
-        const mid_1 = p[0].add(p[1]).scale(0.5);
-        rl.drawLineEx(mid_1.toRl(), mid_1.add(n[0].scale(5)).toRl(), 1, rl.Color.purple);
-
-        const mid_2 = p[1].add(p[2]).scale(0.5);
-        rl.drawLineEx(mid_2.toRl(), mid_2.add(n[1].scale(5)).toRl(), 1, rl.Color.purple);
-
-        const mid_3 = p[2].add(p[3]).scale(0.5);
-        rl.drawLineEx(mid_3.toRl(), mid_3.add(n[2].scale(5)).toRl(), 1, rl.Color.purple);
-
-        const mid_4 = p[3].add(p[0]).scale(0.5);
-        rl.drawLineEx(mid_4.toRl(), mid_4.add(n[3].scale(5)).toRl(), 1, rl.Color.purple);
     }
 }
 
@@ -116,9 +99,24 @@ pub fn main() !void {
 
         var shapes = [_]CollisionData{ a_col, b_col };
         draw_collision_data(shapes[0..]);
+
+        const Edge = @import("math.zig").Edge;
+        // Test origin containment
+        const origin_ray = Edge.from(Vec2.default, Vec2.X.scale(1000));
+
+        var intersections: u8 = 0;
+        for (b_col.edges) |edge| {
+            const intersection_point = origin_ray.intersect(edge);
+            if (intersection_point) |_| {
+                intersections += 1;
+            }
+        }
+
         const collision_pairs = try sort_and_sweep(allocator, shapes[0..]);
-        var pairsString: [10]u8 = undefined;
-        const printable = try std.fmt.bufPrintZ(&pairsString, "{} pairs", .{collision_pairs.len});
+        _ = collision_pairs;
+        var pairsString: [30]u8 = undefined;
+        const printable = try std.fmt.bufPrintZ(&pairsString, "{} intersections", .{intersections});
+
         rl.drawText(printable, 0, 40, 24, rl.Color.white);
 
         rl.drawCircleV(.{ .x = 0, .y = 0 }, 1, rl.Color.white);

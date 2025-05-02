@@ -12,7 +12,8 @@ pub fn sat_collision(self: CollisionData, rhs: CollisionData) ?Mtv {
 
     var tested_axes = std.AutoArrayHashMapUnmanaged(i64, void).empty;
 
-    for (self.normals) |axis| {
+    for (self.edges) |edge| {
+        const axis = edge.normal;
         const x_32: i32 = @intFromFloat(axis.x);
         const y_32: i32 = @intFromFloat(axis.y);
 
@@ -34,7 +35,8 @@ pub fn sat_collision(self: CollisionData, rhs: CollisionData) ?Mtv {
         }
     }
 
-    for (rhs.normals) |axis| {
+    for (rhs.edges) |edge| {
+        const axis = edge.normal;
         const x_32: i32 = @intFromFloat(axis.x);
         const y_32: i32 = @intFromFloat(axis.y);
 
@@ -88,11 +90,9 @@ fn simplex_sweep(simplex: *std.ArrayListUnmanaged(Vec2)) bool {
     _ = simplex;
 }
 
-// Find simplex point for given axis
 fn support(a: []Vec2, b: []Vec2, direction: Vec2) Vec2 {
     const p1 = find_maximum_in_direction(a, direction);
     const p2 = find_maximum_in_direction(b, direction.scale(-1));
-
     return p1.sub(p2);
 }
 
