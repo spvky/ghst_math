@@ -6,6 +6,7 @@ const Triangle = @import("math.zig").Triangle;
 const Quad = @import("math.zig").Quad;
 const sort_and_sweep = @import("broad.zig").sort_and_sweep;
 const sat_collision = @import("sat.zig").sat_collision;
+const draw_simplex = @import("gjk.zig").draw_simplex;
 
 pub fn draw_color(index: usize) rl.Color {
     switch (index % 4) {
@@ -72,33 +73,16 @@ pub fn main() !void {
             b.center.y += 0.01;
         }
 
-        if (rl.isKeyPressed(.r)) {
-            b.rotation += 90;
+        if (rl.isKeyDown(.r)) {
+            b.rotation += 5 * rl.getFrameTime();
         }
 
         const a_col = try a.collision_data(allocator);
         const b_col = try b.collision_data(allocator);
-        const collision = sat_collision(b_col, a_col);
-        if (collision) |mtv| {
-            if (b_col.rigidbody == .dynamic) {
-                const center = b_col.center.*;
-                const other = a_col.center.*;
-
-                if (other.sub(center).dot(mtv.axis) > 0) {
-                    b_col.center.* = b_col.center.*.add(mtv.axis.scale(-mtv.magnitude));
-                } else {
-                    b_col.center.* = b_col.center.*.add(mtv.axis.scale(mtv.magnitude));
-                }
-
-                rl.drawLineEx(center.toRl(), other.toRl(), 1, rl.Color.orange);
-            }
-            b.overlapping = true;
-        } else {
-            b.overlapping = false;
-        }
 
         var shapes = [_]CollisionData{ a_col, b_col };
         draw_collision_data(shapes[0..]);
+        draw_simplex(a_col, b_col);
 
         const Edge = @import("math.zig").Edge;
         // Test origin containment

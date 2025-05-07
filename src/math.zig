@@ -68,6 +68,10 @@ pub const Vec2 = struct {
         return (self.x * rhs.y) - (self.y * rhs.x);
     }
 
+    pub fn triple_product(a: Self, b: Self, c: Self) Self {
+        return b.scale(a.dot(c)).sub(c.scale(a.dot(b)));
+    }
+
     pub fn perp_axis(self: Self, rhs: Self) Self {
         return .{ .x = -(rhs.y - self.y), .y = rhs.x - self.x };
     }
@@ -88,7 +92,37 @@ pub const Vec2 = struct {
     pub fn rotate(self: Self, angle: f32) Self {
         return .{ .x = self.x * cos(angle) - self.y * sin(angle), .y = self.x * sin(angle) + self.y * cos(angle) };
     }
+
+    pub fn extend(self: Self, z: f32) Vec3 {
+        return .{ .x = self.x, .y = self.y, .z = z };
+    }
 };
+
+pub fn find_max_point_in_direction(verts: []Vec2, direction: Vec2) Vec2 {
+    var max_index: usize = 0;
+    var max_dot: f32 = 0.0;
+    for (0..verts.len) |index| {
+        const dot = verts[index].dot(direction);
+        if (dot > max_dot) {
+            max_index = index;
+            max_dot = dot;
+        }
+    }
+    return verts[max_index];
+}
+
+pub fn find_max_point_index_direction(verts: []Vec2, direction: Vec2) usize {
+    var max_index: usize = 0;
+    var max_dot: f32 = 0.0;
+    for (0..verts.len) |index| {
+        const dot = verts[index].dot(direction);
+        if (dot > max_dot) {
+            max_index = index;
+            max_dot = dot;
+        }
+    }
+    return max_index;
+}
 
 pub const Edge = struct {
     start: Vec2,
@@ -163,6 +197,15 @@ pub fn Shape(comptime vertex_count: comptime_int) type {
     };
 }
 
+pub fn grahms_scan(points: []Vec2) void {
+    const lowest_index = find_max_point_index_direction(points, Vec2.NEG_Y);
+    _ = lowest_index;
+}
+
+pub fn is_counter_clockwise(a: Vec2, b: Vec2, c: Vec2) bool {
+    return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x) > 0;
+}
+
 pub const CollisionData = struct {
     center: *Vec2,
     vertices: []Vec2,
@@ -171,6 +214,11 @@ pub const CollisionData = struct {
     velocity: Vec2 = Vec2.default,
 
     const Self = @This();
+
+    pub fn init(points: []Vec2, rigidbody_type: RigidbodyType) void {
+        _ = points;
+        _ = rigidbody_type;
+    }
 
     pub fn scalar_projection(self: Self, axis: Vec2) Projection {
         var min = self.vertices[0].dot(axis);
@@ -209,6 +257,30 @@ pub fn line_intersection(a: Vec2, b: Vec2, c: Vec2, d: Vec2) ?Vec2 {
     }
 }
 
+pub const Vec3 = struct {
+    x: f32,
+    y: f32,
+    z: f32,
+
+    const Self = @This();
+
+    pub fn dot(self: Self, rhs: Self) f32 {
+        return self.x * rhs.x + self.y * rhs.y + self.z * rhs.z;
+    }
+
+    pub fn cross(self: Self, rhs: Self) Vec3 {
+        return Vec3{
+            .x = self.y * rhs.z - self.z * rhs.y,
+            .y = self.z * rhs.x - self.x * rhs.z,
+            .z = self.x * rhs.y - self.y * rhs.x,
+        };
+    }
+
+    pub fn truncate(self: Self) Vec2 {
+        return Vec2{ .x = self.x, .y = self.y };
+    }
+};
+
 pub const Triangle = Shape(3);
 pub const Quad = Shape(4);
 
@@ -221,6 +293,17 @@ comptime {
 
 const expect = std.testing.expect;
 const expectApprox = std.testing.expectApproxEqRel;
+
+test "dot debug" {
+    const a: Vec3 = .{ .x = 45, .y = -20, .z = 0 };
+    const b: Vec3 = .{ .x = 52, .y = 31, .z = 0 };
+
+    const c = a.cross(b);
+    const d = c.truncate();
+
+    std.debug.print("C = x: {d:.2}, y: {d:.2}, z: {d:.2}\n", .{ c.x, c.y, c.z });
+    std.debug.print("D = x: {d:.2}, y: {d:.2}\n", .{ d.x, d.y });
+}
 
 test "intersection" {
     const a = Vec2.default;
