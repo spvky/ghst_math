@@ -91,8 +91,8 @@ pub fn contains_origin(points: []Vec2) bool {
 
 pub fn draw_simplex(s1: CollisionData, s2: CollisionData) void {
     const towards_origin = s1.center.scale(-1).normalize();
-    const a = support(s1.vertices, s2.vertices, towards_origin);
-    const c = support(s1.vertices, s2.vertices, towards_origin.scale(-1));
+    const raw_a = support(s1.vertices, s2.vertices, towards_origin);
+    const raw_c = support(s1.vertices, s2.vertices, towards_origin.scale(-1));
 
     var perpendicular_towards_origin: Vec2 = .{ .x = towards_origin.y, .y = -towards_origin.x };
 
@@ -100,13 +100,29 @@ pub fn draw_simplex(s1: CollisionData, s2: CollisionData) void {
         perpendicular_towards_origin = perpendicular_towards_origin.scale(-1);
     }
 
-    const b = support(s1.vertices, s2.vertices, perpendicular_towards_origin);
-    const d = support(s1.vertices, s2.vertices, perpendicular_towards_origin.scale(-1));
+    const raw_b = support(s1.vertices, s2.vertices, perpendicular_towards_origin);
+    const raw_d = support(s1.vertices, s2.vertices, perpendicular_towards_origin.scale(-1));
 
-    rl.drawLineEx(a.toRl(), b.toRl(), 1, rl.Color.white);
-    rl.drawLineEx(b.toRl(), c.toRl(), 1, rl.Color.white);
-    rl.drawLineEx(c.toRl(), d.toRl(), 1, rl.Color.white);
-    rl.drawLineEx(d.toRl(), a.toRl(), 1, rl.Color.white);
+    if (raw_a) |a| {
+        if (raw_b) |b| {
+            rl.drawLineEx(a.toRl(), b.toRl(), 1, rl.Color.white);
+        }
+    }
+    if (raw_b) |b| {
+        if (raw_c) |c| {
+            rl.drawLineEx(b.toRl(), c.toRl(), 1, rl.Color.white);
+        }
+    }
+    if (raw_c) |c| {
+        if (raw_d) |d| {
+            rl.drawLineEx(c.toRl(), d.toRl(), 1, rl.Color.white);
+        }
+    }
+    if (raw_d) |d| {
+        if (raw_a) |a| {
+            rl.drawLineEx(d.toRl(), a.toRl(), 1, rl.Color.white);
+        }
+    }
 }
 
 fn support(a: []Vec2, b: []Vec2, direction: Vec2) ?Vec2 {

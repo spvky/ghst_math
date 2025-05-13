@@ -98,6 +98,69 @@ pub const Vec2 = struct {
     }
 };
 
+pub const Vec3 = struct {
+    x: f32,
+    y: f32,
+    z: f32,
+
+    const Self = @This();
+
+    pub fn dot(self: Self, rhs: Self) f32 {
+        return self.x * rhs.x + self.y * rhs.y + self.z * rhs.z;
+    }
+
+    pub fn cross(self: Self, rhs: Self) Vec3 {
+        return Vec3{
+            .x = self.y * rhs.z - self.z * rhs.y,
+            .y = self.z * rhs.x - self.x * rhs.z,
+            .z = self.x * rhs.y - self.y * rhs.x,
+        };
+    }
+
+    pub fn truncate(self: Self) Vec2 {
+        return Vec2{ .x = self.x, .y = self.y };
+    }
+};
+
+pub fn Simplex(comptime T: type) type {
+    const max: usize = switch (T) {
+        Vec2 => 3,
+        Vec3 => 4,
+        else => unreachable,
+    };
+
+    return struct {
+        max_points: usize = max,
+        points: std.ArrayListUnmanaged(T),
+        vetor_type: type = T,
+
+        const Self = @This();
+
+        const empty: Self = .{ .points = std.ArrayListUnmanaged(T).empty };
+
+        pub fn append(self: Self, allocator: std.mem.Allocator, point: T) !void {
+            try self.points.append(allocator, point);
+        }
+
+        pub fn remove(self: Self, index: usize) T {
+            return self.points.swapRemove(index);
+        }
+
+        pub fn toOwnedSlice(self: Self, allocator: std.mem.Allocator) ![]T {
+            return try self.points.toOwnedSlice(allocator);
+        }
+
+        pub fn contains(self: Self, point: T) bool {
+            _ = self;
+            _ = point;
+        }
+
+        pub fn isFull(self: Self) bool {
+            self.points.items.len == self.max_points;
+        }
+    };
+}
+
 pub fn find_max_point_in_direction(verts: []Vec2, direction: Vec2) Vec2 {
     var max_index: usize = 0;
     var max_dot: f32 = 0.0;
@@ -256,30 +319,6 @@ pub fn line_intersection(a: Vec2, b: Vec2, c: Vec2, d: Vec2) ?Vec2 {
         return null;
     }
 }
-
-pub const Vec3 = struct {
-    x: f32,
-    y: f32,
-    z: f32,
-
-    const Self = @This();
-
-    pub fn dot(self: Self, rhs: Self) f32 {
-        return self.x * rhs.x + self.y * rhs.y + self.z * rhs.z;
-    }
-
-    pub fn cross(self: Self, rhs: Self) Vec3 {
-        return Vec3{
-            .x = self.y * rhs.z - self.z * rhs.y,
-            .y = self.z * rhs.x - self.x * rhs.z,
-            .z = self.x * rhs.y - self.y * rhs.x,
-        };
-    }
-
-    pub fn truncate(self: Self) Vec2 {
-        return Vec2{ .x = self.x, .y = self.y };
-    }
-};
 
 pub const Triangle = Shape(3);
 pub const Quad = Shape(4);
