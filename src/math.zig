@@ -153,6 +153,17 @@ pub fn Simplex(comptime T: type) type {
         pub fn contains(self: Self, point: T) bool {
             _ = self;
             _ = point;
+
+            return false;
+        }
+
+        pub fn getDirection(self: Self) T {
+            _ = self;
+            return T.empty;
+        }
+
+        pub fn getLast(self: Self) *T {
+            return &self.points.items[self.points.items.len - 1];
         }
 
         pub fn isFull(self: Self) bool {
