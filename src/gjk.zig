@@ -2,10 +2,52 @@ const std = @import("std");
 const rl = @import("raylib");
 const math = @import("math.zig");
 const Vec2 = math.Vec2;
+const Simplex = math.Simplex;
 const CollisionData = math.CollisionData;
 const find_max_point_in_direction = math.find_max_point_in_direction;
 
 pub const SimplexResult = union { NoIntersection: void, FoundIntersection: void, StillEvolving: usize };
+
+pub fn final_thing(s1: CollisionData, s2: CollisionData) !void {
+    var buf: [1000]u8 = undefined;
+    var fba = std.heap.FixedBufferAllocator.init(&buf);
+    const allocator = fba.allocator();
+    var point_list = std.ArrayListUnmanaged(Vec2).empty;
+
+    var direction: Vec2 = s2.center - s1.center;
+    const a = support(s1.vertices, s2.vertices, direction);
+    const b = support(s1.vertices, s2.vertices, direction.scale(-1));
+    const ab = b.sub(a);
+    const ao = a.scale(-1);
+    direction = Vec2.triple_product(ab, ao, ab);
+    const c = support(s1.vertices, s2.vertices, direction);
+
+    try point_list.append(allocator, a);
+    try point_list.append(allocator, b);
+    try point_list.append(allocator, c);
+}
+
+pub fn iterative_method(s1: CollisionData, s2: CollisionData) !bool {
+    var buf: [1000]u8 = undefined;
+    var fba = std.heap.FixedBufferAllocator.init(&buf);
+    const allocator = fba.allocator();
+    var simplex: Simplex(Vec2) = .empty;
+    var direction: Vec2 = s2.center - s1.center;
+    try simplex.append(allocator, support(s1.vertices, s2.vertices, direction));
+    direction = direction.scale(-1);
+    while (true) {
+        try simplex.append(allocator, support(s1.vertices, s2.vertices, direction));
+        if (simplex.getLast().dot(direction) <= 0) {
+            return false;
+        } else {
+            if (simplex.contains(Vec2.default)) {
+                return true;
+            } else {
+                direction = simplex.getDirection();
+            }
+        }
+    }
+}
 
 pub fn calculate_simplex(s1: CollisionData, s2: CollisionData) void {
     var buf: [1000]u8 = undefined;
@@ -86,7 +128,7 @@ pub fn contains_origin(points: []Vec2) bool {
     const abPerp = Vec2.triple_product(ac, ab, ab);
     const acPerp = Vec2.triple_product(ab, ac, ac);
 
-    return abPerp.dot(a0) <= 0 and acPerp.dot(a0);
+    return abPerp.dot(a0) <= 0 and acPerp.dot(a0) <= 0;
 }
 
 pub fn draw_simplex(s1: CollisionData, s2: CollisionData) void {
