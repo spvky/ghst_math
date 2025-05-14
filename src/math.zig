@@ -69,7 +69,7 @@ pub const Vec2 = struct {
     }
 
     pub fn triple_product(a: Self, b: Self, c: Self) Self {
-        return b.scale(a.dot(c)).sub(c.scale(a.dot(b)));
+        return b.scale(c.dot(a)).sub(a.scale(c.dot(b)));
     }
 
     pub fn perp_axis(self: Self, rhs: Self) Self {
