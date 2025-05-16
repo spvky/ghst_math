@@ -61,7 +61,7 @@ pub const Vec2 = struct {
     }
 
     pub fn dot(self: Self, rhs: Self) f32 {
-        return self.x * rhs.x + self.y * rhs.y;
+        return (self.x * rhs.x) + (self.y * rhs.y);
     }
 
     pub fn cross(self: Self, rhs: Self) f32 {
@@ -77,7 +77,7 @@ pub const Vec2 = struct {
     }
 
     pub fn perp(self: Self) Self {
-        return .{ .x = -self.y, .y = self.x };
+        return .{ .x = self.y, .y = -self.x };
     }
 
     pub fn distance(self: Self, rhs: Self) f32 {
@@ -122,55 +122,109 @@ pub const Vec3 = struct {
     }
 };
 
-pub fn Simplex(comptime T: type) type {
-    const max: usize = switch (T) {
-        Vec2 => 3,
-        Vec3 => 4,
-        else => unreachable,
-    };
+pub const Simplex = struct {
+    points: std.ArrayListUnmanaged(Vec2),
 
-    return struct {
-        max_points: usize = max,
-        points: std.ArrayListUnmanaged(T),
-        vetor_type: type = T,
+    const Self = @This();
 
-        const Self = @This();
+    pub const SimplexError = error{OutOfRange};
 
-        const empty: Self = .{ .points = std.ArrayListUnmanaged(T).empty };
+    pub const empty: Self = .{ .points = std.ArrayListUnmanaged(Vec2).empty };
 
-        pub fn append(self: Self, allocator: std.mem.Allocator, point: T) !void {
-            try self.points.append(allocator, point);
+    pub fn append(self: *Self, allocator: std.mem.Allocator, point: Vec2) !void {
+        try self.points.append(allocator, point);
+    }
+
+    pub fn toOwnedSlice(self: Self, allocator: std.mem.Allocator) ![]Vec2 {
+        return try self.points.toOwnedSlice(allocator);
+    }
+
+    pub fn getB(self: Self) SimplexError!Vec2 {
+        const len = self.points.items.len;
+        if (len < 2) {
+            return SimplexError.OutOfRange;
+        } else {
+            return self.points.items[len - 2];
         }
+    }
 
-        pub fn remove(self: Self, index: usize) T {
-            return self.points.swapRemove(index);
+    pub fn getC(self: Self) SimplexError!Vec2 {
+        const len = self.points.items.len;
+        if (len < 3) {
+            return SimplexError.OutOfRange;
+        } else {
+            return self.points.items[len - 3];
         }
+    }
 
-        pub fn toOwnedSlice(self: Self, allocator: std.mem.Allocator) ![]T {
-            return try self.points.toOwnedSlice(allocator);
+    pub fn removeB(self: *Self) SimplexError!void {
+        const len = self.points.items.len;
+        if (len < 2) {
+            return SimplexError.OutOfRange;
+        } else {
+            _ = self.points.swapRemove(len - 2);
         }
+    }
 
-        pub fn contains(self: Self, point: T) bool {
-            _ = self;
-            _ = point;
-
-            return false;
+    pub fn removeC(self: *Self) SimplexError!void {
+        const len = self.points.items.len;
+        if (len < 3) {
+            return SimplexError.OutOfRange;
+        } else {
+            _ = self.points.swapRemove(len - 3);
         }
+    }
 
-        pub fn getDirection(self: Self) T {
-            _ = self;
-            return T.empty;
-        }
+    pub fn containsOrigin(self: *Self, direction: *Vec2) !bool {
+        const a = self.getLast();
+        const ao = a.neg();
+        if (self.points.items.len == 3) {
+            const b = try self.getB();
+            const c = try self.getC();
 
-        pub fn getLast(self: Self) *T {
-            return &self.points.items[self.points.items.len - 1];
-        }
+            const ab = b.sub(a);
+            const ac = c.sub(c);
 
-        pub fn isFull(self: Self) bool {
-            self.points.items.len == self.max_points;
+            const abPerp = Vec2.triple_product(ac, ab, ab);
+            const acPerp = Vec2.triple_product(ab, ac, ac);
+
+            if (abPerp.dot(ao) > 0) {
+                try self.removeC();
+                direction.* = abPerp;
+            } else {
+                if (acPerp.dot(ao) > 0) {
+                    try self.removeB();
+                    direction.* = acPerp;
+                } else {
+                    return true;
+                }
+            }
+        } else {
+            const b = try self.getB();
+            const ab = b.sub(a);
+            const abPerp = Vec2.triple_product(ab, ao, ab);
+            direction.* = abPerp;
         }
-    };
-}
+        return false;
+    }
+
+    pub fn getLast(self: Self) Vec2 {
+        return self.points.items[self.points.items.len - 1];
+    }
+
+    pub fn drawSimplex(self: Self) void {
+        const len = self.points.items.len;
+
+        if (len == 2) {
+            rl.drawLineEx(self.points.items[0].toRl(), self.points.items[1].toRl(), 1, rl.Color.white);
+        }
+        if (len == 3) {
+            rl.drawLineEx(self.points.items[0].toRl(), self.points.items[1].toRl(), 1, rl.Color.red);
+            rl.drawLineEx(self.points.items[1].toRl(), self.points.items[2].toRl(), 1, rl.Color.red);
+            rl.drawLineEx(self.points.items[2].toRl(), self.points.items[0].toRl(), 1, rl.Color.red);
+        }
+    }
+};
 
 pub fn find_max_point_in_direction(verts: []Vec2, direction: Vec2) Vec2 {
     var max_index: usize = 0;
@@ -266,7 +320,7 @@ pub fn Shape(comptime vertex_count: comptime_int) type {
             try edge_list.append(allocator, Edge.from(starting_point, verts[0]));
             const edges = try edge_list.toOwnedSlice(allocator);
 
-            return .{ .vertices = verts, .edges = edges, .rigidbody = self.rigidbody, .center = &self.center };
+            return .{ .vertices = verts, .edges = edges, .rigidbody = self.rigidbody, .center = self.center };
         }
     };
 }
@@ -281,18 +335,13 @@ pub fn is_counter_clockwise(a: Vec2, b: Vec2, c: Vec2) bool {
 }
 
 pub const CollisionData = struct {
-    center: *Vec2,
+    center: Vec2,
     vertices: []Vec2,
     edges: []Edge,
     rigidbody: RigidbodyType,
     velocity: Vec2 = Vec2.default,
 
     const Self = @This();
-
-    pub fn init(points: []Vec2, rigidbody_type: RigidbodyType) void {
-        _ = points;
-        _ = rigidbody_type;
-    }
 
     pub fn scalar_projection(self: Self, axis: Vec2) Projection {
         var min = self.vertices[0].dot(axis);

@@ -6,22 +6,14 @@ const Triangle = @import("math.zig").Triangle;
 const Quad = @import("math.zig").Quad;
 const sort_and_sweep = @import("broad.zig").sort_and_sweep;
 const sat_collision = @import("sat.zig").sat_collision;
-const draw_simplex = @import("gjk.zig").draw_simplex;
+const detect_collision = @import("taylors_version.zig").detect_collision;
 
-pub fn draw_color(index: usize) rl.Color {
-    switch (index % 4) {
-        0 => return rl.Color.red,
-        1 => return rl.Color.blue,
-        2 => return rl.Color.green,
-        3 => return rl.Color.yellow,
-        else => return rl.Color.white,
-    }
-}
-
-pub fn draw_collision_data(shapes: []CollisionData) void {
+pub fn draw_collision_data(shapes: []CollisionData) !void {
+    const colliding = try detect_collision(shapes[0].vertices, shapes[1].vertices);
     for (shapes) |shape| {
-        for (shape.edges, 0..shape.edges.len) |edge, i| {
-            rl.drawLineEx(edge.start.toRl(), edge.end.toRl(), 1, draw_color(i));
+        for (shape.edges) |edge| {
+            const color = if (colliding) rl.Color.red else rl.Color.blue;
+            rl.drawLineEx(edge.start.toRl(), edge.end.toRl(), 1, color);
         }
     }
 }
@@ -81,8 +73,7 @@ pub fn main() !void {
         const b_col = try b.collision_data(allocator);
 
         var shapes = [_]CollisionData{ a_col, b_col };
-        draw_collision_data(shapes[0..]);
-        draw_simplex(a_col, b_col);
+        try draw_collision_data(shapes[0..]);
 
         const Edge = @import("math.zig").Edge;
         // Test origin containment
